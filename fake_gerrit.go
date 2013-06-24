@@ -36,7 +36,7 @@ func handle_connection(conn net.Conn) {
 		command := string(buffer[:length-2])
 		switch {
 
-		case command == "gerrit strem-events":
+		case command == "gerrit stream-events":
 			conn.Write([]byte("gerrit subcommand\n"))
 		default:
 			conn.Write([]byte(command))
