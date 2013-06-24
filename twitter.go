@@ -2,32 +2,11 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 )
 
-func http_request(url string) []byte {
-	response, error := http.Get(url)
-	check_error(error)
-
-	defer response.Body.Close()
-	contents, error := ioutil.ReadAll(response.Body)
-	check_error(error)
-
-	return contents
-}
-
 func main() {
-	// 29418 is the default Gerrit Port, here we should send git
-	// events when receving the "stream-events" command.
-
-
-	//url := "https://twitter.com"
-        //contents := http_request(url)
-	//fmt.Println("%s", string(contents))
-
 	service := ":9000"
 	tcpAddr, error := net.ResolveTCPAddr("ipv4", service)
 	check_error(error)
@@ -49,15 +28,18 @@ func handle_connection(conn net.Conn) {
 	// close connection on exit
 	defer conn.Close()
 	buffer := make([]byte, 1024)
-	_, error := conn.Read(buffer)
+	length, error := conn.Read(buffer)
 	if error != nil {
 		// do something good to clean up?
 	} else {
+		// strip away newline and null termination
+		command := string(buffer[:length-2])
 		switch {
-		case string(buffer) == "gerrit":
-			conn.Write([]byte("gerrit command"))
+
+		case command == "gerrit strem-events":
+			conn.Write([]byte("gerrit subcommand\n"))
 		default:
-			conn.Write(buffer[0:])
+			conn.Write([]byte(command))
 		}
 	}
 }
