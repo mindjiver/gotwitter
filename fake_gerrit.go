@@ -1,52 +1,97 @@
 package main
 
 import (
+	"code.google.com/p/go.crypto/ssh"
+	"code.google.com/p/go.crypto/ssh/terminal"
 	"fmt"
-	"net"
+	"io/ioutil"
 	"os"
 )
 
 func main() {
-	service := ":9000"
-	tcpAddr, error := net.ResolveTCPAddr("ipv4", service)
-	check_error(error)
+	hostname := "0.0.0.0"
+	port := "29418"
 
-	listener, error := net.ListenTCP("tcp", tcpAddr)
-	check_error(error)
+	// An SSH server is represented by a ServerConfig, which holds
+	// certificate details and handles authentication of ServerConns.
+	config := &ssh.ServerConfig{
+		PasswordCallback: func(conn *ssh.ServerConn, user, pass string) bool {
+			return user == "username" && pass == "password"
+		},
+	}
 
+	pemBytes, err := ioutil.ReadFile("id_rsa")
+	if err != nil {
+		panic("Failed to load private key due to " + err.Error())
+	}
+	if err = config.SetRSAPrivateKey(pemBytes); err != nil {
+		panic("Failed to parse private key")
+	}
+
+	// Once a ServerConfig has been configured, connections can be
+	// accepted.
+	listener, err := ssh.Listen("tcp", string(hostname+":"+port), config)
+	if err != nil {
+		panic("failed to listen for connection")
+	}
+
+	fmt.Fprintf(os.Stdout, "Started fake Gerrit streame-event server on %s port %s\n", hostname, port)
+
+	conn, err := listener.Accept()
+	if err != nil {
+		panic("failed to accept incoming connections")
+	}
+
+	if err := conn.Handshake(); err != nil {
+		fmt.Println("Error:" + err.Error())
+	}
+
+	// A ServerConn multiplexes several channels, which must
+	// themselves be Accepted.
 	for {
-		conn, error := listener.Accept()
-		if error != nil {
+		// Accept reads from the connection, demultiplexes packets
+		// to their corresponding channels and returns when a new
+		// channel request is seen. Some goroutine must always be
+		// calling Accept; otherwise no messages will be forwarded
+		// to the channels.
+		channel, err := conn.Accept()
+		if err != nil {
+			fmt.Println("Error:" + err.Error())
+		}
+
+		// Channels have a type, depending on the application level
+		// protocol intended. In the case of a shell, the type is
+		// "session" and ServerShell may be used to present a simple
+		// terminal interface.
+		if channel.ChannelType() != "session" {
+			channel.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
+		channel.Accept()
 
-		go handle_connection(conn)
-	}
-}
-
-func handle_connection(conn net.Conn) {
-	// close connection on exit
-	defer conn.Close()
-	buffer := make([]byte, 1024)
-	length, error := conn.Read(buffer)
-	if error != nil {
-		// do something good to clean up?
-	} else {
-		// strip away newline and null termination
-		command := string(buffer[:length-2])
-		switch {
-
-		case command == "gerrit stream-events":
-			conn.Write([]byte("gerrit subcommand\n"))
-		default:
-			conn.Write([]byte(command))
+		term := terminal.NewTerminal(channel, "")
+		serverTerm := &ssh.ServerTerminal{
+			Term:    term,
+			Channel: channel,
 		}
-	}
-}
 
-func check_error(error error) {
-	if error != nil {
-		fmt.Fprintf(os.Stderr, "Fatal error %s", error.Error())
-		os.Exit(1)
+		go func() {
+			defer channel.Close()
+			for {
+				command, err := serverTerm.ReadLine()
+				if err != nil {
+					break
+				}
+				example_json_stream := "{\"type\":\"comment-added\",change:{\"project\":\"tools/gerrit\", ...}, ...}\n"
+				switch {
+				case command == "gerrit stream-events":
+
+					serverTerm.Write([]byte(example_json_stream))
+				default:
+					serverTerm.Write([]byte(command))
+				}
+
+			}
+		}()
 	}
 }
