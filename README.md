@@ -1,3 +1,3 @@
 Just a small project for playing around with Go.
 
-![Travis CI status](https://travis-ci.org/mindjiver/gotwitter.png?branch=master)
+[![Travis CI status](https://travis-ci.org/mindjiver/gotwitter.png?branch=master)](https://travis-ci.org/mindjiver/gotwitter/builds/)
