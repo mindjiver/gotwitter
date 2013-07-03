@@ -7,9 +7,22 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"log"
 )
 
+var logFile *os.File
+
 func main() {
+	example_json_stream := "{\"type\":\"patchset-created\",\"change\":{\"project\":\"example\",\"branch\":\"master\",\"id\":\"I44f1ae9dbc886cddfa108b47849e2e1b83b548cd\",\"number\":\"7\",\"subject\":\"Remove newline\",\"owner\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"url\":\"http://localhost:8082/r/7\",\"status\":\"NEW\"},\"patchSet\":{\"number\":\"1\",\"revision\":\"44f1ae9dbc886cddfa108b47849e2e1b83b548cd\",\"parents\":[\"0009ab1c17c24d8bfcfad0b67a06c424cc02e487\"],\"ref\":\"refs/changes/07/7/1\",\"uploader\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"createdOn\":1372846590,\"author\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.joensson@gmail.com\",\"username\":\"\"},\"sizeInsertions\":0,\"sizeDeletions\":-1},\"uploader\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"}}"
+
+	var err error
+	logFile, err = os.Create("fakegerrit.log")
+	if err != nil {
+		log.Fatal("Log file create:", err.Error())
+		return
+	}
+	defer logFile.Close()
+
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
@@ -89,6 +102,7 @@ func main() {
 				continue
 			}
 			channel.Accept()
+			fmt.Println("Successfully accepted connection from client")
 
 			term := terminal.NewTerminal(channel, "")
 			serverTerm := &ssh.ServerTerminal{
@@ -103,13 +117,15 @@ func main() {
 					if err != nil {
 						break
 					}
-					example_json_stream := "{\"type\":\"comment-added\",change:{\"project\":\"tools/gerrit\", ...}, ...}\n"
+					fmt.Fprintf(os.Stdout, "received: %s\n", command)
+					fmt.Fprintf(logFile,   "received: %s\n", command)
 					switch {
 					case command == "gerrit stream-events":
-
 						serverTerm.Write([]byte(example_json_stream))
+					case command == "gerrit version":
+						serverTerm.Write([]byte("gerrit version 2.6"))
 					default:
-						serverTerm.Write([]byte(command))
+						break
 					}
 
 				}
