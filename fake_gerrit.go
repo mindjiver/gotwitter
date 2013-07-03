@@ -25,9 +25,15 @@ func main() {
 
 	// An SSH server is represented by a ServerConfig, which holds
 	// certificate details and handles authentication of ServerConns.
-	config := &ssh.ServerConfig{
-		PasswordCallback: func(conn *ssh.ServerConn, user, pass string) bool {
-			return user == "username" && pass == "password"
+	config := &ssh.ServerConfig {
+	PasswordCallback: func(conn *ssh.ServerConn, username string, password string) bool {
+			return username == "username" && password == "password"
+		},
+	PublicKeyCallback: func(conn *ssh.ServerConn, user, algo string, pubkey []byte) bool {
+			// since we don't want to handle keys in this
+			// simple server we just accept any user which
+			// sends a key.
+			return true
 		},
 	}
 
@@ -70,6 +76,7 @@ func main() {
 			channel, err := conn.Accept()
 			if err != nil || channel == nil {
 				fmt.Println("Failed to accept connection")
+				fmt.Println("This error: ", err)
 				break
 			}
 
