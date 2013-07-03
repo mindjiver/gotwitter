@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"log"
+	"strings"
 )
 
 var logFile *os.File
@@ -79,7 +80,7 @@ func main() {
 
 		// A ServerConn multiplexes several channels, which must
 		// themselves be Accepted.
-
+		iteration := 0
 		for {
 			// Accept reads from the connection, demultiplexes packets
 			// to their corresponding channels and returns when a new
@@ -102,10 +103,10 @@ func main() {
 				continue
 			}
 			channel.Accept()
-			fmt.Println("Successfully accepted connection from client")
+			fmt.Println("Successfully accepted channel from client")
 
 			term := terminal.NewTerminal(channel, "")
-			serverTerm := &ssh.ServerTerminal{
+			serverTerm := &ssh.ServerTerminal {
 				Term:    term,
 				Channel: channel,
 			}
@@ -113,6 +114,8 @@ func main() {
 			go func() {
 				defer channel.Close()
 				for {
+					iteration = iteration + 1
+					fmt.Println("Reading from SSH console", iteration)
 					command, err := serverTerm.ReadLine()
 					if err != nil {
 						break
@@ -121,9 +124,13 @@ func main() {
 					fmt.Fprintf(logFile,   "received: %s\n", command)
 					switch {
 					case command == "gerrit stream-events":
-						serverTerm.Write([]byte(example_json_stream))
+						serverTerm.Write([]byte(example_json_stream + "\n"))
 					case command == "gerrit version":
 						serverTerm.Write([]byte("gerrit version 2.6"))
+					case strings.Contains(command, "query"):
+						status_open := "{\"project\":\"example\",\"branch\":\"master\",\"id\":\"I960171c79c0456d470b6e80114c39e1ea6fd615d\",\"number\":\"8\",\"subject\":\"Fix dumpy dooo\",\"owner\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"url\":\"http://localhost:8082/r/8\",\"createdOn\":1372853084,\"lastUpdated\":1372853084,\"sortKey\":\"002627d400000008\",\"open\":true,\"status\":\"NEW\"}"
+						serverTerm.Write([]byte(status_open))
+						serverTerm.Write([]byte("{\"type\":\"stats\",\"rowCount\":1,\"runTimeMilliseconds\":10}"))
 					default:
 						break
 					}
