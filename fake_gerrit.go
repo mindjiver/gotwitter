@@ -9,12 +9,16 @@ import (
 	"os/signal"
 	"log"
 	"strings"
+	"time"
+	"math/rand"
 )
 
 var logFile *os.File
 
+var example_json_stream = "{\"type\":\"patchset-created\",\"change\":{\"project\":\"example\",\"branch\":\"master\",\"id\":\"I44f1ae9dbc886cddfa108b47849e2e1b83b548cd\",\"number\":\"7\",\"subject\":\"Remove newline\",\"owner\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"url\":\"http://localhost:8082/r/7\",\"status\":\"NEW\"},\"patchSet\":{\"number\":\"1\",\"revision\":\"44f1ae9dbc886cddfa108b47849e2e1b83b548cd\",\"parents\":[\"0009ab1c17c24d8bfcfad0b67a06c424cc02e487\"],\"ref\":\"refs/changes/07/7/1\",\"uploader\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"createdOn\":1372846590,\"author\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.joensson@gmail.com\",\"username\":\"\"},\"sizeInsertions\":0,\"sizeDeletions\":-1},\"uploader\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"}}"
+
+
 func main() {
-	example_json_stream := "{\"type\":\"patchset-created\",\"change\":{\"project\":\"example\",\"branch\":\"master\",\"id\":\"I44f1ae9dbc886cddfa108b47849e2e1b83b548cd\",\"number\":\"7\",\"subject\":\"Remove newline\",\"owner\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"url\":\"http://localhost:8082/r/7\",\"status\":\"NEW\"},\"patchSet\":{\"number\":\"1\",\"revision\":\"44f1ae9dbc886cddfa108b47849e2e1b83b548cd\",\"parents\":[\"0009ab1c17c24d8bfcfad0b67a06c424cc02e487\"],\"ref\":\"refs/changes/07/7/1\",\"uploader\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"createdOn\":1372846590,\"author\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.joensson@gmail.com\",\"username\":\"\"},\"sizeInsertions\":0,\"sizeDeletions\":-1},\"uploader\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"}}"
 
 	var err error
 	logFile, err = os.Create("fakegerrit.log")
@@ -124,13 +128,14 @@ func main() {
 					fmt.Fprintf(logFile,   "received: %s\n", command)
 					switch {
 					case command == "gerrit stream-events":
-						serverTerm.Write([]byte(example_json_stream + "\n"))
+						print_json_blobs(serverTerm)
+
 					case command == "gerrit version":
-						serverTerm.Write([]byte("gerrit version 2.6"))
+						serverTerm.Write([]byte("gerrit version 2.6\n\r"))
 					case strings.Contains(command, "query"):
-						status_open := "{\"project\":\"example\",\"branch\":\"master\",\"id\":\"I960171c79c0456d470b6e80114c39e1ea6fd615d\",\"number\":\"8\",\"subject\":\"Fix dumpy dooo\",\"owner\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"url\":\"http://localhost:8082/r/8\",\"createdOn\":1372853084,\"lastUpdated\":1372853084,\"sortKey\":\"002627d400000008\",\"open\":true,\"status\":\"NEW\"}"
+						status_open := "{\"project\":\"example\",\"branch\":\"master\",\"id\":\"I960171c79c0456d470b6e80114c39e1ea6fd615d\",\"number\":\"8\",\"subject\":\"Fix dumpy dooo\",\"owner\":{\"name\":\"Peter Jönsson\",\"email\":\"peter.jonsson@klarna.com\",\"username\":\"peter.jonsson\"},\"url\":\"http://localhost:8082/r/8\",\"createdOn\":1372853084,\"lastUpdated\":1372853084,\"sortKey\":\"002627d400000008\",\"open\":true,\"status\":\"NEW\"}\r\n"
 						serverTerm.Write([]byte(status_open))
-						serverTerm.Write([]byte("{\"type\":\"stats\",\"rowCount\":1,\"runTimeMilliseconds\":10}"))
+						serverTerm.Write([]byte("{\"type\":\"stats\",\"rowCount\":1,\"runTimeMilliseconds\":10}\r\n"))
 					default:
 						break
 					}
@@ -139,4 +144,17 @@ func main() {
 			}()
 		}
 	}
+}
+
+func print_json_blobs(serverTerm *ssh.ServerTerminal) {
+	for i := 0; i < 1000; i++ {
+		sleep := random(100, 1000)
+		serverTerm.Write([]byte(example_json_stream + "\n\r"))
+		time.Sleep(time.Duration(sleep) * time.Millisecond)
+	}
+}
+
+func random(min, max int) int {
+	rand.Seed(time.Now().Unix())
+	return rand.Intn(max - min) + min
 }
